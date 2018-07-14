@@ -1,7 +1,5 @@
 pragma solidity ^0.4.24;
 
-import "./Seriality.sol";
-
 contract ERC721Reciever{
     function onERC721Received(
         address _from,
@@ -11,7 +9,7 @@ contract ERC721Reciever{
     ) public returns(bytes4);
 }
 
-contract ERC721 is Seriality {
+contract ERC721 {
 
     ///  This emits when ownership of any NFT changes by any mechanism.
     ///  This event emits when NFTs are created (`from` == 0) and destroyed
@@ -71,46 +69,6 @@ contract ERC721 is Seriality {
         tokenApprovals[_tokenVIN] = _approved;
         emit Approval(owner, _approved, _tokenVIN);
     }
-    
-    
-   // Serialize data     
-   // @token_id string ID of the token to be serializing   
-
-   function getSerializedData(string token_id) public returns (bytes) {
-        bytes memory result;
-        string memory color = getTokenColor(token_id);
-        string memory reg_number = getTokenRegNumber(token_id);
-        uint buffer_size = sizeOfString(color) +
-                       sizeOfString(reg_number);
-
-        uint offset = buffer_size;            
-
-        stringToBytes(offset, bytes(color), result);
-        offset -= sizeOfString(color); 
-        
-        stringToBytes(offset, bytes(reg_number), result);
-        offset -= sizeOfString(reg_number);
-
-        return result;
-   }
-   
-   
-   // Deserialize data     
-   // @token_id string ID of the token to be Deserializing   
-
-   function getDeserializedData(string token_id, bytes data) public returns (bytes) {
-        string memory color = new string(32);
-        string memory reg_number = new string(32);
-
-        uint offset = 0;
-
-        bytesToString(offset, data, bytes(color));
-        offset += sizeOfString(color);
-        bytesToString(offset, data, bytes(reg_number));
-
-        setTokenColor(token_id, color);
-        setTokenRegNumber(token_id, reg_number);
-   }
 
    // @dev Transfers the ownership of a given token VIN to another address
    // Requires the msg sender to be the owner or approved
@@ -305,4 +263,120 @@ contract ERC721 is Seriality {
     assembly { size := extcodesize(addr) }
     return size > 0;
   }
+  
+    function sizeOfString(string _in) internal pure  returns(uint _size){
+        _size = bytes(_in).length / 32;
+         if(bytes(_in).length % 32 != 0) 
+            _size++;
+            
+        _size++; // first 32 bytes is reserved for the size of the string     
+        _size *= 32;
+    }
+    
+    function stringToBytes(uint _offst, bytes memory _input, bytes memory _output) internal {
+        uint256 stack_size = _input.length / 32;
+        if(_input.length % 32 > 0) stack_size++;
+        
+        assembly {
+            let index := 0
+            stack_size := add(stack_size,1)//adding because of 32 first bytes memory as the length
+        loop:
+            
+            mstore(add(_output, _offst), mload(add(_input,mul(index,32))))
+            _offst := sub(_offst , 32)
+            index := add(index ,1)
+            jumpi(loop , lt(index,stack_size))
+        }
+    }
+    
+    function uintToBytes(uint _offst, uint _input, bytes memory _output) internal pure {
+        
+        assembly {
+            mstore(add(_output, _offst), _input)
+        }
+    }   
+    
+    function bytesToUint256(uint _offst, bytes memory _input) internal pure returns (uint256 _output) {
+        
+        assembly {
+            _output := mload(add(_input, _offst))
+        }
+    } 
+    
+    function sizeOfUint(uint16 _postfix) internal pure  returns(uint size){
+        return 32;
+    }
+    
+    
+   // Serialize data     
+   // @token_id string ID of the token to be serializing   
+
+   function getSerializedData(string token_id) public returns (bytes) {
+        string memory color = new string(32);
+        string memory reg_number = new string(32);
+
+        color = getTokenColor(token_id);
+        reg_number = getTokenRegNumber(token_id);
+        uint buffer_size = 200;/*color_size +
+                       reg_size +//sizeOfString(reg_number) +
+                       sizeOfUint(256);*/
+
+        bytes memory result = new bytes(buffer_size);
+
+        //uint offset = buffer_size;
+        uint offset = 200;
+        
+        //uintToBytes(offset, buffer_size, result);
+        //offset -= sizeOfUint(256); 
+        stringToBytes(offset, bytes(color), result);
+        offset -= sizeOfString(color); 
+        stringToBytes(offset, bytes(reg_number), result);
+
+        return result;
+   }
+   
+    function bytesToString(uint _offst, bytes memory _input, bytes memory _output) internal  {
+
+        uint size = 32;
+        assembly {
+            let loop_index:= 0
+                  
+            let chunk_count
+            
+            size := mload(add(_input,_offst))
+            chunk_count := add(div(size,32),1) // chunk_count = size/32 + 1
+            
+            if gt(mod(size,32),0) {
+                chunk_count := add(chunk_count,1)  // chunk_count++
+            }
+                
+            
+            loop:
+                mstore(add(_output,mul(loop_index,32)),mload(add(_input,_offst)))
+                _offst := sub(_offst,32)           // _offst -= 32
+                loop_index := add(loop_index,1)
+                
+            jumpi(loop , lt(loop_index , chunk_count))
+            
+        }
+    }
+   
+   // Deserialize data     
+   // @token_id string ID of the token to be Deserializing   
+
+   function recoveryToken(string _tokenVIN, bytes data) public returns (bytes) {
+        string memory color = new string(32);
+        string memory reg_number = new string(32);
+
+        uint offset = 200;  
+        
+        bytesToString(offset, data, bytes(reg_number));
+        offset -= sizeOfString(reg_number);
+        bytesToString(offset, data, bytes(color));  
+
+        setTokenColor(_tokenVIN, color);
+        setTokenRegNumber(_tokenVIN, reg_number);
+   }
+
+  
 }
