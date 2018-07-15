@@ -29,6 +29,12 @@ contract ERC721 {
 
     /// This emits when registration number for an NFT is changed.
     event tokenRegNumberChanged(string indexed _tokenVIN, string indexed _tokenRegNumber);
+    
+    /// This emits when token recovered.
+    event TokenRecovered(string indexed _tokenId);
+
+    /// This emits when token recovered.
+    event TokenBurst(string indexed _tokenId);
 
     // Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
     // which can be also obtained as `ERC721Receiver(0).onERC721Received.selector`
@@ -36,6 +42,12 @@ contract ERC721 {
 
     // Total number of token available on the blockchain
     uint256 public totalSupply;
+    
+    // 
+    address private allowTo;
+
+    // if trye then can create new token
+    bool private status;    
 
     // Mapping from account to number of token it owns
     mapping (address => uint256) balances;
@@ -52,7 +64,9 @@ contract ERC721 {
     // Mapping from token VIN to its registration number
     mapping (string => string) private tokenRegNumber;
 
-    constructor() public {
+    // @_status if true then can create new token
+    constructor(bool _status) public {
+        status = _status;
         totalSupply = 0;
     }
 
@@ -247,7 +261,7 @@ contract ERC721 {
     function safeTransferFrom(address _from, address _to, string _tokenVIN, bytes _data) public {
         transferFrom(_from, _to, _tokenVIN);
         if (isContract(_to)) {
-            bytes4 retval = ERC721Reciever(_to).onERC721Received(_from, _to, _tokenVIN, _data);
+            bytes4 retval = ERC721Reciever(_to).onERC721Received(_from, _to,_tokenVIN, _data);
             require (retval == ERC721_RECEIVED);
         }
     }
@@ -308,10 +322,10 @@ contract ERC721 {
     }
     
     
-   // Serialize data     
-   // @token_id string ID of the token to be serializing   
-
-   function getSerializedData(string token_id) public returns (bytes) {
+    // Serialize data     
+    // @token_id string ID of the token to be serializing   
+    // @return serialized token data
+    function getSerializedData(string token_id) public returns (bytes) {
         string memory color = new string(32);
         string memory reg_number = new string(32);
 
@@ -333,7 +347,7 @@ contract ERC721 {
         stringToBytes(offset, bytes(reg_number), result);
 
         return result;
-   }
+    }
    
     function bytesToString(uint _offst, bytes memory _input, bytes memory _output) internal  {
 
@@ -361,10 +375,10 @@ contract ERC721 {
         }
     }
    
-   // Deserialize data     
-   // @token_id string ID of the token to be Deserializing   
-
-   function recoveryToken(string _tokenVIN, bytes data) public returns (bytes) {
+    // Recovery token data by VIN     
+    // @token_id string ID of the token to be Deserializing   
+    //
+    function recoveryToken(string _tokenVIN, bytes data) public {
         string memory color = new string(32);
         string memory reg_number = new string(32);
 
@@ -376,7 +390,19 @@ contract ERC721 {
 
         setTokenColor(_tokenVIN, color);
         setTokenRegNumber(_tokenVIN, reg_number);
+        
+        emit TokenRecovered(_tokenVIN);
    }
-
+   
+   function setPermissonsToRecover(string _tokenVIN, address _allowTo) private{
+        address owner = ownerOf(_tokenVIN);
+        require(owner != address(0));
+        require(owner == msg.sender || getApproved(_tokenVIN) == msg.sender);
+        allowTo = _allowTo;
+   }
+   
+   function demolishToken(string _tokenVIN) {
+       emit TokenBurst(_tokenVIN);
+   }
   
 }
